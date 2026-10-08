@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Digital Library - Login</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    body {
+      background: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 400px;
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    h2 { text-align: center; margin: 0 0 8px; font-size: 22px; }
+    p.subtitle { text-align: center; color: #94a3b8; font-size: 13px; margin: 0 0 20px; }
+    
+    .tab-group {
+      display: flex;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      background: transparent;
+      color: #94a3b8;
+      border: none;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: #2563eb;
+      color: white;
+    }
+
+    label { font-size: 12px; color: #cbd5e1; display: block; margin-bottom: 5px; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: white;
+      outline: none;
+    }
+    button.login-submit {
+      width: 100%;
+      padding: 11px;
+      background: #2563eb;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button.login-submit:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Digital Library Management</h2>
+    <p class="subtitle">Sign in to continue to your dashboard</p>
+
+    <!-- Role Selection Tabs -->
+    <div class="tab-group">
+      <button type="button" id="adminTab" class="tab-btn active" onclick="changeRole('admin')">Admin</button>
+      <button type="button" id="studentTab" class="tab-btn" onclick="changeRole('student')">Student</button>
+    </div>
+
+    <!-- Seedha aapke actual project (dashboard.html) par bhejega -->
+    <form action="dashboard.html" method="get">
+      <label>Username</label>
+      <input type="text" placeholder="Enter username" required>
+
+      <label>Password</label>
+      <input type="password" placeholder="••••••••" required>
+
+      <button type="submit" class="login-submit">Sign In</button>
+    </form>
+  </div>
+
+  <script>
+    function changeRole(role) {
+      if(role === 'admin') {
+        document.getElementById('adminTab').classList.add('active');
+        document.getElementById('studentTab').classList.remove('active');
+      } else {
+        document.getElementById('studentTab').classList.add('active');
+        document.getElementById('adminTab').classList.remove('active');
+      }
+    }
+  </script>
+</body>
+</html>

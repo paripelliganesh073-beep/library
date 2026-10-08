@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Library Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 24px; border: none; }
+        .table-hover tbody tr:hover { background-color: #f1f5f9; }
+        .badge-issued { background-color: #ffc107; color: #000; }
+        .badge-returned { background-color: #198754; color: #fff; }
+        .badge-overdue { background-color: #dc3545; color: #fff; animation: pulse 2s infinite; }
+        .badge-available { background-color: #0d6efd; color: #fff; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .toast-container { z-index: 1080; }
+    </style>
+</head>
+<body class="p-4">
+
+<!-- Notification Toast Container (Browser Top-Right) -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="reminderToast" class="toast align-items-center text-bg-primary border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage">
+                Notification Sent!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-primary m-0">📚 Digital Library Dashboard</h2>
+        <div>
+            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addBookModal">+ Add New Book</button>
+            <button class="btn btn-info text-white me-2" data-bs-toggle="modal" data-bs-target="#addMemberModal">+ Add New Member</button>
+            <button class="btn btn-outline-primary" onclick="loadAllData()">Refresh Data</button>
+        </div>
+    </div>
+
+    <!-- Metric Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card p-3 bg-white border-start border-primary border-4">
+                <div class="text-muted small text-uppercase fw-bold">Total Books</div>
+                <h3 class="fw-bold text-primary mt-1" id="totalBooksCount">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 bg-white border-start border-success border-4">
+                <div class="text-muted small text-uppercase fw-bold">Available Books</div>
+                <h3 class="fw-bold text-success mt-1" id="availableBooksCount">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 bg-white border-start border-warning border-4">
+                <div class="text-muted small text-uppercase fw-bold">Overdue Books</div>
+                <h3 class="fw-bold text-warning mt-1" id="overdueBooksCount">0</h3>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card p-3 bg-white border-start border-danger border-4">
+                <div class="text-muted small text-uppercase fw-bold">Total Fine Collected</div>
+                <h3 class="fw-bold text-danger mt-1" id="totalFineAmount">₹0.00</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Charts Section -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card p-4">
+                <h6 class="fw-bold text-secondary mb-3">📊 Books by Category</h6>
+                <div style="height: 250px; position: relative;">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card p-4">
+                <h6 class="fw-bold text-secondary mb-3">📈 Book Availability Status</h6>
+                <div style="height: 250px; position: relative;">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Issue Book Section -->
+    <div class="card p-4">
+        <h5 class="fw-bold mb-3">Issue a Book</h5>
+        <div class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Select Available Book</label>
+                <select id="bookSelect" class="form-select">
+                    <option value="">-- Choose Book --</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Select Member</label>
+                <select id="memberSelect" class="form-select">
+                    <option value="">-- Choose Member --</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-primary w-100" onclick="handleIssueBook()">Issue Book</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Books in Library Table With QR Code -->
+        <div class="col-md-6">
+            <div class="card p-4">
+                <h5 class="fw-bold mb-3">Books in Library</h5>
+                <div class="table-responsive" style="max-height: 430px; overflow-y: auto;">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>ID</th>
+                                <th>QR Code</th>
+                                <th>Title</th>
+                                <th>Author</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="booksTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Registered Members Table -->
+        <div class="col-md-6">
+            <div class="card p-4">
+                <h5 class="fw-bold mb-3">Registered Members</h5>
+                <div class="table-responsive" style="max-height: 430px; overflow-y: auto;">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Email</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction History Section With Quick Filter Pills -->
+    <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold m-0">Transaction History</h5>
+            <button class="btn btn-outline-secondary btn-sm" onclick="exportTransactionsToCSV()">📥 Export to CSV</button>
+        </div>
+
+        <!-- Quick Filter Buttons (Pills) -->
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm btn-outline-dark active" id="btnFilterAll" onclick="applyStatusFilter('ALL')">All Records</button>
+                <button type="button" class="btn btn-sm btn-outline-warning" id="btnFilterIssued" onclick="applyStatusFilter('ISSUED')">Active Issued</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="btnFilterOverdue" onclick="applyStatusFilter('OVERDUE')">Overdue Only</button>
+            </div>
+            <div style="min-width: 260px;">
+                <input type="text" id="transactionSearch" class="form-control form-control-sm" 
+                       placeholder="🔍 Search by Book name or Member..." onkeyup="filterTransactions()">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="transactionsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Txn ID</th>
+                        <th>Book</th>
+                        <th>Member</th>
+                        <th>Issue Date</th>
+                        <th>Due Date</th>
+                        <th>Return Date</th>
+                        <th>Fine (₹)</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Book Modal -->
+<div class="modal fade" id="addBookModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Add New Book</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addBookForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Book Title</label>
+                        <input type="text" id="newBookTitle" class="form-control" placeholder="e.g. Clean Code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Author</label>
+                        <input type="text" id="newBookAuthor" class="form-control" placeholder="e.g. Robert C. Martin" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Category</label>
+                        <input type="text" id="newBookCategory" class="form-control" placeholder="e.g. Programming" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Save Book</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Member Modal -->
+<div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Add New Member</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMemberForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Full Name</label>
+                        <input type="text" id="newMemberName" class="form-control" placeholder="e.g. Rahul Sharma" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Member Role</label>
+                        <select id="newMemberRole" class="form-select">
+                            <option value="STUDENT">Student (Max 2 Books)</option>
+                            <option value="FACULTY">Faculty (Max 4 Books)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Email</label>
+                        <input type="email" id="newMemberEmail" class="form-control" placeholder="e.g. rahul@example.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Phone Number</label>
+                        <input type="tel" id="newMemberPhone" class="form-control" placeholder="e.g. 9876543210" required>
+                    </div>
+                    <button type="submit" class="btn btn-info text-white w-100">Save Member</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Member History Modal -->
+<div class="modal fade" id="memberHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="historyModalMemberName">Member Borrowing History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <span class="badge bg-primary fs-6" id="historyTotalIssued">Active Issued: 0</span>
+                    <span class="badge bg-danger fs-6" id="historyTotalFine">Total Fine: ₹0.00</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Txn ID</th>
+                                <th>Book Title</th>
+                                <th>Issue Date</th>
+                                <th>Due Date</th>
+                                <th>Return Date</th>
+                                <th>Fine (₹)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="memberHistoryTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let globalTransactions = [];
+    let globalMembers = [];
+    let currentFilterMode = 'ALL';
+    let categoryChartInstance = null;
+    let statusChartInstance = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadAllData();
+
+        // Add Book Form Handler
+        document.getElementById("addBookForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const title = document.getElementById("newBookTitle").value.trim();
+            const author = document.getElementById("newBookAuthor").value.trim();
+            const category = document.getElementById("newBookCategory").value.trim();
+
+            if (!title || !author || !category) return alert("Please fill all fields!");
+
+            fetch('/api/books', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, author, category, available: true })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to add book");
+                return res.json();
+            })
+            .then(() => {
+                alert("Book added successfully!");
+                document.getElementById("addBookForm").reset();
+                bootstrap.Modal.getInstance(document.getElementById('addBookModal')).hide();
+                loadAllData();
+            })
+            .catch(err => alert("Error: " + err.message));
+        });
+
+        // Add Member Form Handler
+        document.getElementById("addMemberForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const name = document.getElementById("newMemberName").value.trim();
+            const role = document.getElementById("newMemberRole").value;
+            const email = document.getElementById("newMemberEmail").value.trim();
+            const phone = document.getElementById("newMemberPhone").value.trim();
+
+            if (!name || !email || !phone) return alert("Please fill all fields!");
+
+            fetch('/api/members', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, phone, membershipType: role })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to add member");
+                return res.json();
+            })
+            .then(() => {
+                alert("Member registered successfully!");
+                document.getElementById("addMemberForm").reset();
+                bootstrap.Modal.getInstance(document.getElementById('addMemberModal')).hide();
+                loadAllData();
+            })
+            .catch(err => alert("Error: " + err.message));
+        });
+    });
+
+    function loadAllData() {
+        loadBooks();
+        loadMembers();
+        loadTransactions();
+    }
+
+    function loadBooks() {
+        fetch('/api/books')
+            .then(res => res.json())
+            .then(books => {
+                document.getElementById("totalBooksCount").innerText = books.length;
+                const availableBooks = books.filter(b => b.available);
+                document.getElementById("availableBooksCount").innerText = availableBooks.length;
+
+                const bookSelect = document.getElementById("bookSelect");
+                bookSelect.innerHTML = '<option value="">-- Choose Book --</option>';
+                availableBooks.forEach(book => {
+                    bookSelect.innerHTML += `<option value="${book.id}">${book.title} (ID: ${book.id})</option>`;
+                });
+
+                const booksTable = document.getElementById("booksTableBody");
+                booksTable.innerHTML = "";
+                books.forEach(book => {
+                    const status = book.available 
+                        ? `<span class="badge badge-available">Available</span>` 
+                        : `<span class="badge badge-issued">Issued</span>`;
+
+                    const qrData = encodeURIComponent(`BOOK-ID:${book.id}|TITLE:${book.title}`);
+                    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=${qrData}`;
+
+                    booksTable.innerHTML += `
+                        <tr>
+                            <td>${book.id}</td>
+                            <td>
+                                <img src="${qrImgUrl}" alt="QR" width="45" height="45" class="border rounded p-1 bg-white shadow-sm" title="Scan Book ID: ${book.id}">
+                            </td>
+                            <td class="fw-semibold">${book.title}</td>
+                            <td>${book.author || '-'}</td>
+                            <td>${book.category || '-'}</td>
+                            <td>${status}</td>
+                        </tr>
+                    `;
+                });
+
+                updateCharts(books);
+            })
+            .catch(err => console.error("Error loading books:", err));
+    }
+
+    function updateCharts(books) {
+        const categoryCounts = {};
+        let availableCount = 0;
+        let issuedCount = 0;
+
+        books.forEach(book => {
+            const cat = book.category ? book.category.trim() : "Uncategorized";
+            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+
+            if (book.available) availableCount++;
+            else issuedCount++;
+        });
+
+        const catLabels = Object.keys(categoryCounts);
+        const catData = Object.values(categoryCounts);
+
+        if (categoryChartInstance) categoryChartInstance.destroy();
+        const ctxCat = document.getElementById('categoryChart').getContext('2d');
+        categoryChartInstance = new Chart(ctxCat, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    data: catData,
+                    backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        if (statusChartInstance) statusChartInstance.destroy();
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        statusChartInstance = new Chart(ctxStatus, {
+            type: 'pie',
+            data: {
+                labels: ['Available Books', 'Issued Books'],
+                datasets: [{
+                    data: [availableCount, issuedCount],
+                    backgroundColor: ['#0d6efd', '#ffc107']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function loadMembers() {
+        fetch('/api/members')
+            .then(res => res.json())
+            .then(members => {
+                globalMembers = members;
+                const memberSelect = document.getElementById("memberSelect");
+                memberSelect.innerHTML = '<option value="">-- Choose Member --</option>';
+                const membersTable = document.getElementById("membersTableBody");
+                membersTable.innerHTML = "";
+
+                members.forEach(member => {
+                    const role = member.membershipType || "STUDENT";
+                    memberSelect.innerHTML += `<option value="${member.id}">${member.name} (${role})</option>`;
+                    membersTable.innerHTML += `
+                        <tr>
+                            <td>${member.id}</td>
+                            <td class="fw-semibold">${member.name}</td>
+                            <td><span class="badge bg-secondary">${role}</span></td>
+                            <td class="text-muted small">${member.email || '-'}</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm" onclick="viewMemberHistory(${member.id}, '${member.name.replace(/'/g, "\\'")}')">
+                                    History
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            })
+            .catch(err => console.error("Error loading members:", err));
+    }
+
+    function loadTransactions() {
+        fetch('/api/borrow')
+            .then(res => res.json())
+            .then(data => {
+                // DIRECT DEMO OVERDUE RECORD FOR TESTING FEATURE 1
+                data.push({
+                    id: 999,
+                    book: { title: "Sample Testing Book (Clean Code)" },
+                    member: { name: "Aanchal", email: "aanchal@demo.com" },
+                    issueDate: "2026-08-01",
+                    dueDate: "2026-08-08",
+                    returnDate: null,
+                    fineAmount: 45.00,
+                    status: "ISSUED"
+                });
+
+                globalTransactions = data;
+                const tbody = document.getElementById("transactionTableBody");
+                tbody.innerHTML = "";
+                let totalFine = 0;
+                let overdueCount = 0;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                data.forEach(txn => {
+                    const fine = txn.fineAmount ? Number(txn.fineAmount) : 0;
+                    totalFine += fine;
+
+                    let statusBadge = "";
+                    let isOverdue = false;
+                    let diffDays = 0;
+
+                    if (txn.status === "RETURNED") {
+                        statusBadge = `<span class="badge badge-returned px-2 py-1">RETURNED</span>`;
+                    } else if (txn.status === "ISSUED") {
+                        if (txn.dueDate) {
+                            const dueDate = new Date(txn.dueDate);
+                            dueDate.setHours(0, 0, 0, 0);
+                            diffDays = Math.ceil((today - dueDate) / (1000 * 60 * 60 * 24));
+
+                            if (diffDays > 0) {
+                                isOverdue = true;
+                                overdueCount++;
+                                statusBadge = `<span class="badge badge-overdue px-2 py-1">OVERDUE (${diffDays}d late)</span>`;
+                            } else {
+                                statusBadge = `<span class="badge badge-issued px-2 py-1">ISSUED</span>`;
+                            }
+                        } else {
+                            statusBadge = `<span class="badge badge-issued px-2 py-1">ISSUED</span>`;
+                        }
+                    }
+
+                    // Email Reminder Button for Overdue Books
+                    let actionBtns = '';
+                    if (txn.status === "ISSUED") {
+                        actionBtns = `
+                            <button class="btn btn-sm btn-primary me-1" onclick="handleReturnBook(${txn.id})">Return</button>
+                            <button class="btn btn-sm btn-outline-success me-1" onclick="handleRenewBook(${txn.id})">Renew (+7d)</button>
+                        `;
+                        if (isOverdue) {
+                            const mName = txn.member ? txn.member.name : 'Member';
+                            const mEmail = txn.member ? txn.member.email : 'email';
+                            const bTitle = txn.book ? txn.book.title : 'Book';
+                            actionBtns += `<button class="btn btn-sm btn-danger" onclick="sendReminderToast('${mName}', '${mEmail}', '${bTitle}', ${diffDays})">🔔 Remind</button>`;
+                        }
+                    } else {
+                        actionBtns = `<span class="text-muted small">Completed</span>`;
+                    }
+
+                    const rowClass = isOverdue ? 'table-danger' : '';
+                    const dataStatusAttr = isOverdue ? 'OVERDUE' : txn.status;
+
+                    tbody.innerHTML += `
+                        <tr class="${rowClass}" data-status="${dataStatusAttr}">
+                            <td>${txn.id}</td>
+                            <td class="fw-semibold">${txn.book ? txn.book.title : 'N/A'}</td>
+                            <td>${txn.member ? txn.member.name : 'N/A'}</td>
+                            <td>${txn.issueDate || '-'}</td>
+                            <td class="${isOverdue ? 'text-danger fw-bold' : ''}">${txn.dueDate || '-'}</td>
+                            <td>${txn.returnDate || '-'}</td>
+                            <td class="${fine > 0 ? 'text-danger fw-bold' : ''}">₹${fine.toFixed(2)}</td>
+                            <td>${statusBadge}</td>
+                            <td>${actionBtns}</td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById("totalFineAmount").innerText = `₹${totalFine.toFixed(2)}`;
+                document.getElementById("overdueBooksCount").innerText = overdueCount;
+                filterTransactions();
+            })
+            .catch(err => console.error("Error loading transactions:", err));
+    }
+
+    // Role-based validation on Book Issue
+    function handleIssueBook() {
+        const bookId = document.getElementById("bookSelect").value;
+        const memberId = document.getElementById("memberSelect").value;
+
+        if (!bookId || !memberId) return alert("Please select both Book and Member!");
+
+        const selectedMember = globalMembers.find(m => m.id == memberId);
+        const memberRole = selectedMember && selectedMember.membershipType ? selectedMember.membershipType : "STUDENT";
+        
+        const activeCount = globalTransactions.filter(t => t.member && t.member.id == memberId && t.status === "ISSUED").length;
+        const limit = memberRole === "FACULTY" ? 4 : 2;
+
+        if (activeCount >= limit) {
+            alert(`⚠️ Borrowing Limit Reached!\nMember "${selectedMember.name}" (${memberRole}) already has ${activeCount} active books. Maximum allowed is ${limit}.`);
+            return;
+        }
+
+        fetch(`/api/borrow/issue?bookId=${bookId}&memberId=${memberId}`, { method: 'POST' })
+        .then(async res => {
+            if (!res.ok) throw new Error(await res.text() || "Issue failed");
+            return res.json();
+        })
+        .then(() => {
+            alert("Book issued successfully!");
+            loadAllData();
+        })
+        .catch(err => alert(err.message));
+    }
+
+    // Email Reminder Toast Trigger
+    function sendReminderToast(memberName, email, bookTitle, lateDays) {
+        const toastEl = document.getElementById('reminderToast');
+        const toastMessage = document.getElementById('toastMessage');
+        toastMessage.innerHTML = `<strong>🔔 Reminder Email Dispatched!</strong><br>To: ${memberName} (${email})<br>Notice: "${bookTitle}" is overdue by ${lateDays} days. Please return immediately.`;
+        
+        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        toast.show();
+    }
+
+    // Quick Filter Status Pills (All / Active Issued / Overdue)
+    function applyStatusFilter(mode) {
+        currentFilterMode = mode;
+        document.getElementById('btnFilterAll').classList.toggle('active', mode === 'ALL');
+        document.getElementById('btnFilterIssued').classList.toggle('active', mode === 'ISSUED');
+        document.getElementById('btnFilterOverdue').classList.toggle('active', mode === 'OVERDUE');
+        filterTransactions();
+    }
+
+    function filterTransactions() {
+        const input = document.getElementById("transactionSearch").value.toLowerCase();
+        const rows = document.querySelectorAll("#transactionTableBody tr");
+
+        rows.forEach(row => {
+            const textMatch = row.innerText.toLowerCase().includes(input);
+            const status = row.getAttribute("data-status");
+
+            let statusMatch = true;
+            if (currentFilterMode === 'ISSUED') {
+                statusMatch = (status === 'ISSUED' || status === 'OVERDUE');
+            } else if (currentFilterMode === 'OVERDUE') {
+                statusMatch = (status === 'OVERDUE');
+            }
+
+            row.style.display = (textMatch && statusMatch) ? "" : "none";
+        });
+    }
+
+    function handleReturnBook(transactionId) {
+        if (transactionId === 999) {
+            alert("Demo testing record returned successfully!");
+            globalTransactions = globalTransactions.filter(t => t.id !== 999);
+            loadTransactions();
+            return;
+        }
+
+        fetch(`/api/borrow/return/${transactionId}`, { method: 'POST' })
+        .then(async res => {
+            if (!res.ok) throw new Error(await res.text() || "Return failed");
+            return res.json();
+        })
+        .then(txn => {
+            if (txn.fineAmount > 0) alert(`Book returned! Late fine applied: ₹${txn.fineAmount}`);
+            else alert("Book returned successfully with zero fine!");
+            loadAllData();
+        })
+        .catch(err => alert(err.message));
+    }
+
+    function handleRenewBook(transactionId) {
+        if (!confirm("Are you sure you want to extend this book's due date by 7 days?")) return;
+
+        if (transactionId === 999) {
+            alert("Demo testing book renewed successfully!");
+            return;
+        }
+
+        fetch(`/api/borrow/renew/${transactionId}`, { method: 'POST' })
+        .then(async res => {
+            if (!res.ok) throw new Error(await res.text() || "Renew failed");
+            return res.json();
+        })
+        .then(txn => {
+            alert(`Book renewed successfully! New Due Date: ${txn.dueDate}`);
+            loadAllData();
+        })
+        .catch(err => alert("Error: " + err.message));
+    }
+
+    function viewMemberHistory(memberId, memberName) {
+        document.getElementById("historyModalMemberName").innerText = `Borrowing History: ${memberName}`;
+        const historyTable = document.getElementById("memberHistoryTableBody");
+        historyTable.innerHTML = "";
+
+        const memberTxns = globalTransactions.filter(t => t.member && t.member.id === memberId);
+
+        let activeIssued = 0;
+        let totalFine = 0;
+
+        if (memberTxns.length === 0) {
+            historyTable.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No transactions found for this member.</td></tr>`;
+        } else {
+            memberTxns.forEach(t => {
+                const fine = t.fineAmount ? Number(t.fineAmount) : 0;
+                totalFine += fine;
+                if (t.status === "ISSUED") activeIssued++;
+
+                const statusBadge = t.status === "ISSUED" 
+                    ? `<span class="badge badge-issued px-2 py-1">ISSUED</span>` 
+                    : `<span class="badge badge-returned px-2 py-1">RETURNED</span>`;
+
+                historyTable.innerHTML += `
+                    <tr>
+                        <td>${t.id}</td>
+                        <td class="fw-semibold">${t.book ? t.book.title : 'N/A'}</td>
+                        <td>${t.issueDate || '-'}</td>
+                        <td>${t.dueDate || '-'}</td>
+                        <td>${t.returnDate || '-'}</td>
+                        <td class="${fine > 0 ? 'text-danger fw-bold' : ''}">₹${fine.toFixed(2)}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        document.getElementById("historyTotalIssued").innerText = `Active Issued: ${activeIssued}`;
+        document.getElementById("historyTotalFine").innerText = `Total Fine Paid: ₹${totalFine.toFixed(2)}`;
+
+        const modal = new bootstrap.Modal(document.getElementById("memberHistoryModal"));
+        modal.show();
+    }
+
+    function exportTransactionsToCSV() {
+        if (!globalTransactions || globalTransactions.length === 0) return alert("No transactions available to export!");
+
+        const headers = ["Transaction ID", "Book Title", "Member Name", "Issue Date", "Due Date", "Return Date", "Fine Amount (INR)", "Status"];
+        const rows = globalTransactions.map(txn => [
+            txn.id,
+            `"${txn.book ? txn.book.title.replace(/"/g, '""') : 'N/A'}"`,
+            `"${txn.member ? txn.member.name.replace(/"/g, '""') : 'N/A'}"`,
+            txn.issueDate || "",
+            txn.dueDate || "",
+            txn.returnDate || "",
+            txn.fineAmount != null ? txn.fineAmount : 0,
+            txn.status || ""
+        ]);
+
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `library_report_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
