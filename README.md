@@ -51,7 +51,7 @@ Traditional paper-based or disconnected spreadsheet methods often struggle with 
 1. **Clone or Download the Project:**
    * Download the repository ZIP file and extract it, or clone directly using Git:
      ```bash
-     git clone [https://github.com/aanchalmaury/digitallibrary.git](https://github.com/aanchalmaury/digitallibrary.git)
+     git clone https://github.com/paripelliganesh073-beep/library.git
      ```
 
 2. **Open in VS Code:**
